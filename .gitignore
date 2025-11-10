@@ -1,0 +1,40 @@
+# Build artifacts
+*.o
+*.bin
+*.elf
+*.iso
+
+# Directories
+isodir/
+build/
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.sublime-*
+
+# OS specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb

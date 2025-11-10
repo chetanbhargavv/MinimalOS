@@ -1,0 +1,16 @@
+To add a screenshot:
+
+1. Run MinimalOS in QEMU
+2. Take a screenshot of the QEMU window showing the kernel output
+3. Save it as screenshot.png in the root directory
+4. The README.md already references it
+
+The screenshot should show:
+- The MinimalOS banner
+- Initialization messages with [OK] status
+- "Hello, Kernel!" message
+- Shell prompt with commands
+- Command output (help, echo, etc.)
+
+Recommended size: 800x600 or similar
+Format: PNG

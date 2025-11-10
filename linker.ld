@@ -1,0 +1,31 @@
+/* Linker script for multiboot kernel */
+
+ENTRY(_start)
+OUTPUT_FORMAT(elf32-i386)
+
+SECTIONS
+{
+    /* Kernel starts at 1MB physical address */
+    . = 0x100000;
+
+    .multiboot ALIGN(4K) : {
+        *(.multiboot)
+    }
+
+    .text ALIGN(4K) : {
+        *(.text)
+    }
+
+    .rodata ALIGN(4K) : {
+        *(.rodata*)
+    }
+
+    .data ALIGN(4K) : {
+        *(.data)
+    }
+
+    .bss ALIGN(4K) : {
+        *(COMMON)
+        *(.bss)
+    }
+}

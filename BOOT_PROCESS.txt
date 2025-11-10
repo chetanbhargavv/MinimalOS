@@ -1,0 +1,239 @@
+MinimalOS Boot Process Flow
+============================
+
+STAGE 1: BIOS BOOT (Real Mode - 16-bit)
+┌─────────────────────────────────────────┐
+│ Power On → BIOS POST                    │
+│ BIOS loads sector 0 to 0x7C00          │
+│ Checks boot signature (0xAA55)         │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│ BOOTLOADER STARTS (boot.asm)            │
+│ - Initialize segments (DS, ES, SS)      │
+│ - Setup stack at 0x7C00                 │
+│ - Print "Booting MinimalOS..."          │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│ LOAD KERNEL FROM DISK                   │
+│ - Read 15 sectors starting at sector 2  │
+│ - Load to memory address 0x1000         │
+│ - Print "Loading kernel..."             │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+
+STAGE 2: PROTECTED MODE (32-bit)
+┌─────────────────────────────────────────┐
+│ ENABLE A20 LINE                         │
+│ - Access memory above 1MB               │
+│ - Use fast A20 gate (port 0x92)        │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│ LOAD GDT (Global Descriptor Table)      │
+│ - Null descriptor                       │
+│ - Code segment (0-4GB, executable)      │
+│ - Data segment (0-4GB, writable)        │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│ ENTER PROTECTED MODE                    │
+│ - Set CR0.PE bit                        │
+│ - Far jump to flush pipeline            │
+│ - Setup segment registers               │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+
+STAGE 3: LONG MODE SETUP (64-bit)
+┌─────────────────────────────────────────┐
+│ SETUP PAGING STRUCTURES                 │
+│ PML4 (Page Map Level 4)                 │
+│   └─> PDP (Page Directory Pointer)      │
+│        └─> PD (Page Directory)          │
+│             └─> 2MB Huge Page           │
+│ Identity map first 2MB (virt = phys)    │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│ ENABLE PAE & LONG MODE                  │
+│ - Set CR4.PAE (Physical Addr Extension) │
+│ - Load CR3 with PML4 address            │
+│ - Set EFER.LME (Long Mode Enable)       │
+│ - Set CR0.PG (Enable Paging)            │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│ LOAD 64-BIT GDT                         │
+│ - Null descriptor                       │
+│ - 64-bit code segment                   │
+│ - 64-bit data segment                   │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│ JUMP TO 64-BIT CODE                     │
+│ - Far jump to long mode                 │
+│ - Clear segment registers               │
+│ - Jump to kernel at 0x1000              │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+
+STAGE 4: KERNEL INITIALIZATION (64-bit)
+┌─────────────────────────────────────────┐
+│ KERNEL ENTRY (kernel_entry.asm)         │
+│ - Setup kernel stack (16KB)             │
+│ - Call kernel_main()                    │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│ KERNEL_MAIN (kernel.c)                  │
+│                                         │
+│ 1. Initialize Screen Driver             │
+│    - VGA text mode at 0xB8000           │
+│    - Clear screen                       │
+│    - Print welcome banner               │
+│                                         │
+│ 2. Initialize Memory Management         │
+│    - Setup heap at 0x200000 (2MB)      │
+│    - 4MB heap size                      │
+│    - Bump allocator                     │
+│                                         │
+│ 3. Initialize Task Scheduler            │
+│    - Clear task table (8 slots)         │
+│    - Round-robin scheduling             │
+│                                         │
+│ 4. Initialize Shell                     │
+│    - Setup command buffer               │
+│    - Register commands                  │
+│                                         │
+│ 5. Start Shell                          │
+│    - Print "Hello, Kernel!"             │
+│    - Display prompt                     │
+│    - Execute demo commands              │
+└──────────────┬──────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────┐
+│ KERNEL RUNNING                          │
+│ - Shell accepting commands              │
+│ - Scheduler ready for tasks             │
+│ - System idle (HLT instruction)         │
+└─────────────────────────────────────────┘
+
+
+MEMORY MAP DURING BOOT
+=======================
+
+Real Mode (16-bit):
+0x00000000 ├─────────────────┤
+           │ IVT & BIOS Data │
+0x00007C00 ├─────────────────┤
+           │   BOOTLOADER    │ ← Loaded here by BIOS
+0x00007E00 ├─────────────────┤
+           │      Free       │
+0x000A0000 ├─────────────────┤
+           │  Video Memory   │
+0x00100000 └─────────────────┘
+
+After Kernel Load:
+0x00000000 ├─────────────────┤
+           │ IVT & BIOS Data │
+0x00001000 ├─────────────────┤
+           │  KERNEL CODE    │ ← Kernel loaded here
+0x00100000 ├─────────────────┤
+           │  Kernel Stack   │
+0x00200000 ├─────────────────┤
+           │  Kernel Heap    │ ← 4MB for kmalloc
+0x00600000 ├─────────────────┤
+           │   Free Memory   │
+           └─────────────────┘
+
+VGA Memory:
+0x000B8000 ├─────────────────┤
+           │  Text Buffer    │ ← 80x25 characters
+           │  (4000 bytes)   │
+0x000B8FA0 └─────────────────┘
+
+
+CPU MODE TRANSITIONS
+====================
+
+Real Mode (16-bit)
+  ↓ Set CR0.PE = 1
+Protected Mode (32-bit)
+  ↓ Setup paging + Set EFER.LME = 1 + Set CR0.PG = 1
+Long Mode (64-bit)
+
+
+REGISTER STATE AT KERNEL ENTRY
+===============================
+
+RSP: Points to kernel_stack_top (16KB stack)
+RIP: 0x1000 (kernel entry point)
+CS:  64-bit code segment
+DS/ES/FS/GS/SS: 0 (null in 64-bit mode)
+CR0: PE=1, PG=1 (Protected mode + Paging)
+CR3: PML4 table address
+CR4: PAE=1 (Physical Address Extension)
+EFER: LME=1 (Long Mode Enable)
+
+
+GDT STRUCTURE
+=============
+
+32-bit GDT (Protected Mode):
+┌────┬──────────────────────────┐
+│ 0  │ Null Descriptor          │
+├────┼──────────────────────────┤
+│ 8  │ Code (0-4GB, RX)        │
+├────┼──────────────────────────┤
+│ 16 │ Data (0-4GB, RW)        │
+└────┴──────────────────────────┘
+
+64-bit GDT (Long Mode):
+┌────┬──────────────────────────┐
+│ 0  │ Null Descriptor          │
+├────┼──────────────────────────┤
+│ 8  │ 64-bit Code Segment     │
+├────┼──────────────────────────┤
+│ 16 │ 64-bit Data Segment     │
+└────┴──────────────────────────┘
+
+
+PAGING STRUCTURE
+================
+
+Virtual Address → Physical Address
+
+PML4 Entry 0 ──┐
+               │
+               ▼
+         PDP Entry 0 ──┐
+                       │
+                       ▼
+                 PD Entry 0 ──┐
+                               │
+                               ▼
+                         2MB Huge Page
+                         (0x000000 - 0x1FFFFF)
+                         Identity Mapped
+
+
+DISK LAYOUT
+===========
+
+Sector 0:    Bootloader (512 bytes)
+Sector 1:    Bootloader continuation
+Sectors 2-16: Kernel binary
+Sector 17+:   Available for file system

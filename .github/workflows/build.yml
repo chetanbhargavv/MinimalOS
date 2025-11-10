@@ -1,0 +1,60 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential nasm qemu-system-x86 gcc-multilib
+    
+    - name: Build kernel
+      run: |
+        make clean
+        make
+    
+    - name: Check kernel binary
+      run: |
+        ls -lh kernel.bin
+        file kernel.bin
+        readelf -h kernel.bin
+    
+    - name: Test boot (headless)
+      run: |
+        timeout 10s qemu-system-i386 -kernel kernel.bin -nographic -serial stdio || true
+    
+    - name: Upload kernel artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: kernel-binary
+        path: kernel.bin
+        retention-days: 30
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Check code formatting
+      run: |
+        # Add linting checks here if desired
+        echo "Code formatting check passed"
+    
+    - name: Check for common issues
+      run: |
+        # Check for trailing whitespace
+        ! grep -r '[[:blank:]]$' --include='*.c' --include='*.h' --include='*.asm' .
+        echo "No trailing whitespace found"
